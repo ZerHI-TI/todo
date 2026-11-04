@@ -51,6 +51,15 @@ QListView {
     padding: 4px;
     outline: none;
 }
+
+QListView QLineEdit {
+    padding: 0px;
+}
+
+QListView QLineEdit {
+    padding: 0px;
+}
+
 QListView::item {
     background-color: #313244;
     border-radius: 4px;
@@ -110,7 +119,7 @@ QMenuBar {
 }
 QMenuBar::item {
     background: transparent;
-    padding: 6px 12px;
+    padding: 4px 10px;
     border-radius: 4px;
 }
 QMenuBar::item:selected {

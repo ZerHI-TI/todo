@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "text": "new tasks",
+    "done": false
+  },
+  {
+    "text": "r",
+    "done": false
+  }
+]
