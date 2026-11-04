@@ -1,14 +1,15 @@
 from dataclasses import dataclass
 import sys, os, json
 from typing import List
+
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QListWidget, QLabel, QListWidgetItem,
-    QMessageBox, QStyle, QMainWindow
+    QLineEdit, QPushButton, QListView, QLabel,
+    QMessageBox, QMainWindow, QAbstractItemView,
 )
-
 from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut, QAction
+from PyQt6.QtGui import QFont, QIcon, QKeySequence, QAction
+
 
 def resource_path(relative_path):
     if getattr(sys, 'frozen', False):
@@ -17,11 +18,11 @@ def resource_path(relative_path):
         base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
+
 def data_path(filename):
     if getattr(sys, 'frozen', False):
         return os.path.join(os.path.dirname(sys.executable), filename)
-    else:
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 DATA_FILE = data_path("tasks.json")
 QSS_PATH = resource_path("style.qss")
@@ -33,10 +34,12 @@ def load_stylesheet():
     except OSError:
         return ""
 
+
 @dataclass
 class Task:
     text: str
     done: bool = False
+
 
 class TaskModel(QAbstractListModel):
     def __init__(self, parent=None):
@@ -45,7 +48,7 @@ class TaskModel(QAbstractListModel):
 
     def rowCount(self, parent=QModelIndex()):
         if parent.isValid():
-            return 0            
+            return 0
         return len(self._tasks)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
@@ -70,18 +73,33 @@ class TaskModel(QAbstractListModel):
             Qt.ItemFlag.ItemIsEnabled
             | Qt.ItemFlag.ItemIsSelectable
             | Qt.ItemFlag.ItemIsUserCheckable
+            | Qt.ItemFlag.ItemIsEditable
         )
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
         if not index.isValid() or not (0 <= index.row() < len(self._tasks)):
             return False
+        task = self._tasks[index.row()]
+
         if role == Qt.ItemDataRole.CheckStateRole:
-            self._tasks[index.row()].done = bool(value)
+            task.done = bool(value)
             self.dataChanged.emit(
                 index, index,
                 [Qt.ItemDataRole.CheckStateRole, Qt.ItemDataRole.FontRole],
             )
             return True
+
+        if role == Qt.ItemDataRole.EditRole:
+            text = str(value).strip()
+            if not text or text == task.text:
+                return False
+            task.text = text
+            self.dataChanged.emit(
+                index, index,
+                [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole],
+            )
+            return True
+
         return False
 
     def add_task(self, text: str) -> None:
@@ -113,11 +131,12 @@ class TaskModel(QAbstractListModel):
 
 
 class TodoWidget(QWidget):
-
     countchanged = pyqtSignal(int)
 
     def __init__(self):
         super().__init__()
+
+        self.model = TaskModel(self)
 
         self.input_field = QLineEdit()
         self.input_field.setPlaceholderText("Что нужно сделать?")
@@ -126,24 +145,39 @@ class TodoWidget(QWidget):
         self.delete_button = QPushButton("Удалить")
         self.clear_all_button = QPushButton("Очистить всё")
 
-        self.task_list = QListWidget()
+        self.task_list = QListView()
+        self.task_list.setModel(self.model)
+        self.task_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.task_list.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+        )
+
         self.counter = QLabel()
 
         input_layout = QHBoxLayout()
         input_layout.addWidget(self.input_field)
         input_layout.addWidget(self.add_button)
 
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addWidget(self.delete_button)
+        buttons_layout.addWidget(self.clear_all_button)
+
         main_layout = QVBoxLayout()
         main_layout.addLayout(input_layout)
         main_layout.addWidget(self.counter)
         main_layout.addWidget(self.task_list)
+        main_layout.addLayout(buttons_layout)
         self.setLayout(main_layout)
 
         self.add_button.clicked.connect(self.add_task)
         self.input_field.returnPressed.connect(self.add_task)
         self.delete_button.clicked.connect(self.delete_task)
         self.clear_all_button.clicked.connect(self.clear_all_tasks)
-        self.task_list.itemChanged.connect(self.on_changed_item)
+
+        self.model.rowsInserted.connect(lambda *_: self.update_counter())
+        self.model.rowsRemoved.connect(lambda *_: self.update_counter())
+        self.model.modelReset.connect(lambda *_: self.update_counter())
 
         self.load_task()
         self.update_counter()
@@ -152,32 +186,29 @@ class TodoWidget(QWidget):
         text = self.input_field.text().strip()
         if not text:
             return
-        item = QListWidgetItem(text)
-        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item.setCheckState(Qt.CheckState.Unchecked)
-        self.task_list.addItem(item)
-
+        self.model.add_task(text)
         self.input_field.clear()
         self.input_field.setFocus()
-        self.update_counter()
 
     def delete_task(self):
-        row = self.task_list.currentRow()
-        if row >= 0:
-            self.task_list.takeItem(row)
-        self.update_counter()
+        index = self.task_list.currentIndex()
+        if index.isValid():
+            self.model.remove_task(index.row())
 
     def clear_all_tasks(self):
-        self.task_list.clear()
-        self.update_counter()
-
-    def on_changed_item(self, item):
-        font = item.font()
-        font.setStrikeOut(item.checkState() == Qt.CheckState.Checked)
-        item.setFont(font)
+        if self.model.rowCount() == 0:
+            return
+        answer = QMessageBox.question(
+            self, "Очистить всё",
+            "Удалить все задачи? Это действие нельзя отменить",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.model.clear()
 
     def update_counter(self):
-        count = self.task_list.count()
+        count = self.model.rowCount()
         self.counter.setText(f"Всего задач: {count}")
         self.countchanged.emit(count)
 
@@ -189,38 +220,27 @@ class TodoWidget(QWidget):
                 data = json.load(f)
         except (json.JSONDecodeError, OSError):
             return
-        for task in data:
-            item = QListWidgetItem(task['text'])
-            item.setFlags(item.flags() 
-            | Qt.ItemFlag.ItemIsUserCheckable
-            | Qt.ItemFlag.ItemIsEditable
-            )
-            self.task_list.addItem(item)
-            if task.get("done", False):
-                item.setCheckState(Qt.CheckState.Checked)
-            else:
-                item.setCheckState(Qt.CheckState.Unchecked)
+        tasks = [
+            Task(text=entry.get("text", ""), done=bool(entry.get("done", False)))
+            for entry in data
+            if entry.get("text")
+        ]
+        self.model.load(tasks)
 
     def save_tasks(self):
-        data = []
-        for i in range(self.task_list.count()):
-            item = self.task_list.item(i)
-            data.append({
-                "text": item.text(),
-                "done": item.checkState() == Qt.CheckState.Checked,
-            })
+        data = [{"text": t.text, "done": t.done} for t in self.model.tasks()]
         try:
-            with open(DATA_FILE, 'w', encoding="utf-8") as f:
+            with open(DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except OSError as e:
-            print(f"Не удалось сохранить задачи:{e}")
+            QMessageBox.warning(self, "Ошибка", f"Не удалось сохранить задачи: {e}")
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Мои задачки")
-        self.resize(340,700)
+        self.resize(340, 700)
         self.setWindowIcon(QIcon(resource_path("icon/app.png")))
 
         self.todo = TodoWidget()
@@ -247,18 +267,18 @@ class MainWindow(QMainWindow):
         self.add_action = QAction("&Добавить задачу", self)
         self.add_action.setShortcut(QKeySequence("Ctrl+N"))
         self.add_action.setStatusTip("Перейти к полю ввода")
-        self.add_action.triggered.connect(self.todo.input_field.setFocus)
+        self.add_action.triggered.connect(lambda: self.todo.input_field.setFocus())
 
         self.delete_action = QAction("&Удалить задачу", self)
         self.delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
         self.delete_action.setStatusTip("Удалить выбранную задачу")
         self.delete_action.triggered.connect(self.todo.delete_task)
-        self.delete_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.delete_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         self.todo.task_list.addAction(self.delete_action)
 
         self.clear_action = QAction("&Очистить всё", self)
         self.clear_action.setStatusTip("Удалить все задачи")
-        self.clear_action.triggered.connect(self.on_clear_clicked)
+        self.clear_action.triggered.connect(self.todo.clear_all_tasks)
 
         self.about_action = QAction("&О программе", self)
         self.about_action.setStatusTip("Информация о приложении")
@@ -284,7 +304,6 @@ class MainWindow(QMainWindow):
         toolbar = self.addToolBar("Инструменты")
         toolbar.setMovable(False)
 
-        style = self.style()
         self.save_action.setIcon(QIcon(resource_path("icon/save.png")))
         self.add_action.setIcon(QIcon(resource_path("icon/add.png")))
         self.delete_action.setIcon(QIcon(resource_path("icon/remove.png")))
@@ -303,29 +322,23 @@ class MainWindow(QMainWindow):
     def on_count_changed(self, count):
         self.statusBar().showMessage(f"Задач: {count}")
 
-    def on_clear_clicked(self):
-        if self.todo.task_list.count() == 0:
-            return
-        answer = QMessageBox.question(
-            self, "Очистить всё", "Удалить все задачи? Это действие нельзя отменить", 
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            self.todo.clear_all_tasks()
-
     def show_about(self):
         QMessageBox.about(
             self, "О программе",
             "<h2>Мои задачи</h2>"
             "<p>Простой менеджер задач на PyQt6</p>"
-            "<p>Учебный проект ZerHI_TI</p>"
+            "<p>Учебный проект ZerHI_TI</p>",
         )
+
+    def closeEvent(self, event):
+        self.todo.save_tasks()
+        super().closeEvent(event)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyleSheet(load_stylesheet())
-    app.setWindowIcon(QIcon(resource_path("icon/app-icon.png")))
+    app.setWindowIcon(QIcon(resource_path("icon/app.png")))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
