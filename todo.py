@@ -60,6 +60,8 @@ class TaskModel(QAbstractListModel):
             return task.text
         if role == Qt.ItemDataRole.CheckStateRole:
             return Qt.CheckState.Checked if task.done else Qt.CheckState.Unchecked
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            return task.text
         if role == Qt.ItemDataRole.FontRole:
             font = QFont()
             font.setStrikeOut(task.done)
@@ -154,6 +156,8 @@ class TodoWidget(QWidget):
         )
 
         self.counter = QLabel()
+        self.search_field = QLineEdit()
+        self.search_field.setPlaceholderText("Поиск...")
 
         input_layout = QHBoxLayout()
         input_layout.addWidget(self.input_field)
@@ -165,6 +169,7 @@ class TodoWidget(QWidget):
 
         main_layout = QVBoxLayout()
         main_layout.addLayout(input_layout)
+        main_layout.addWidget(self.search_field)
         main_layout.addWidget(self.counter)
         main_layout.addWidget(self.task_list)
         main_layout.addLayout(buttons_layout)
@@ -174,10 +179,12 @@ class TodoWidget(QWidget):
         self.input_field.returnPressed.connect(self.add_task)
         self.delete_button.clicked.connect(self.delete_task)
         self.clear_all_button.clicked.connect(self.clear_all_tasks)
+        self.search_field.textChanged.connect(self.refresh)
 
-        self.model.rowsInserted.connect(lambda *_: self.update_counter())
-        self.model.rowsRemoved.connect(lambda *_: self.update_counter())
-        self.model.modelReset.connect(lambda *_: self.update_counter())
+        self.model.rowsInserted.connect(lambda *_: self.refresh())
+        self.model.rowsRemoved.connect(lambda *_: self.refresh())
+        self.model.modelReset.connect(lambda *_: self.refresh())
+        self.model.dataChanged.connect(lambda *_: self.refresh())
 
         self.load_task()
         self.update_counter()
@@ -207,10 +214,28 @@ class TodoWidget(QWidget):
         if answer == QMessageBox.StandardButton.Yes:
             self.model.clear()
 
+    def filter_tasks(self):
+        text = self.search_field.text().lower().strip()
+        for row in range(self.model.rowCount()):
+            index = self.model.index(row, 0)
+            task_text = self.model.data(index, Qt.ItemDataRole.DisplayRole) or ""
+            self.task_list.setRowHidden(row, text not in task_text.lower())
+
     def update_counter(self):
-        count = self.model.rowCount()
-        self.counter.setText(f"Всего задач: {count}")
-        self.countchanged.emit(count)
+        total = self.model.rowCount()
+        visible = sum(
+            1 for row in range(total) 
+            if not self.task_list.isRowHidden(row)
+        )
+        if total == visible:
+            self.counter.setText(f"Всего задач: {total}")
+        else:
+            self.counter.setText(f"Всего задач: {total}, показано: {visible}")
+        self.countchanged.emit(total)
+
+    def refresh(self):
+        self.filter_tasks()
+        self.update_counter()
 
     def load_task(self):
         if not os.path.exists(DATA_FILE):
