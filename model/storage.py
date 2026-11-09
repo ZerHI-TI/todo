@@ -1,4 +1,3 @@
-
 import json
 import os
 from typing import List
@@ -7,7 +6,7 @@ from .task import Task
 from utils.paths import DATA_FILE
 
 
-def load_task(self) -> List[Task]:
+def load_task() -> List[Task]:
     if not os.path.exists(DATA_FILE):
         return []
     try:

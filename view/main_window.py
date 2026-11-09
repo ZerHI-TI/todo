@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import (
-    QMessageBox, QMainWindow
+    QMessageBox, QMainWindow, QSystemTrayIcon, QMenu, QApplication
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QKeySequence, QAction
 from utils.paths import resource_path
+from .system_tray import TrayIcon
 from .todo_widget import TodoWidget
 
 
@@ -24,6 +25,11 @@ class MainWindow(QMainWindow):
 
         self.todo.countchanged.connect(self.on_count_changed)
 
+        self.tray_icon = TrayIcon(self)
+
+
+
+
     def create_actions(self):
         self.save_action = QAction("&Сохранить", self)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
@@ -33,7 +39,7 @@ class MainWindow(QMainWindow):
         self.exit_action = QAction("&Выход", self)
         self.exit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.exit_action.setStatusTip("Закрыть приложение")
-        self.exit_action.triggered.connect(self.close)
+        self.exit_action.triggered.connect(QApplication.instance().quit)
 
         self.add_action = QAction("&Добавить задачу", self)
         self.add_action.setShortcut(QKeySequence("Ctrl+N"))
@@ -103,4 +109,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.todo.save_tasks()
-        super().closeEvent(event)
+        event.ignore()
+        self.hide()
+        self.tray_icon.showMessage(
+            "Прилоежние свернуто",
+            "Окно скрыто в системном трее",
+            QSystemTrayIcon.MessageIcon.Information,
+            2000
+        )

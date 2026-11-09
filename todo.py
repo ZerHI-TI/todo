@@ -8,6 +8,7 @@ def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(load_stylesheet())
     app.setWindowIcon(QIcon(resource_path("icon/app.png")))
+    app.setQuitOnLastWindowClosed(False)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

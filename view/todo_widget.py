@@ -116,7 +116,7 @@ class TodoWidget(QWidget):
         self.update_counter()
 
     def load_task(self):
-        tasks = storage.load_task(self.model.tasks())
+        tasks = storage.load_task()
         if tasks:
             self.model.load(tasks)
 
