@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QAbstractItemView,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from .CustomDelegate import CustomDelegate
 
 
 from model import storage
@@ -32,6 +33,7 @@ class TodoWidget(QWidget):
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
         )
+        self.task_list.setItemDelegate(CustomDelegate())
 
         self.counter = QLabel()
         self.search_field = QLineEdit()
