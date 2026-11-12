@@ -22,7 +22,7 @@ class TaskModel(QAbstractListModel):
         if role == Qt.ItemDataRole.DisplayRole:
             return task.text
         if role == Qt.ItemDataRole.CheckStateRole:
-            return Qt.CheckState.Checked if task.done else Qt.CheckState.Unchecked
+            return Qt.CheckState.Checked.value if task.done else Qt.CheckState.Unchecked.value
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return task.text
         if role == Qt.ItemDataRole.FontRole:
@@ -50,7 +50,7 @@ class TaskModel(QAbstractListModel):
             task.done = bool(value)
             self.dataChanged.emit(
                 index, index,
-                [Qt.ItemDataRole.CheckStateRole, Qt.ItemDataRole.FontRole],
+                [Qt.ItemDataRole.CheckStateRole],
             )
             return True
 
@@ -65,7 +65,7 @@ class TaskModel(QAbstractListModel):
             )
             return True
 
-        return False
+        return super().setData(index, value, role)
 
     def add_task(self, text: str) -> None:
         row = len(self._tasks)
