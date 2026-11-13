@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QApplication, QStyleOptionButton, QStyledItemDelegate, QStyle
+from PyQt6.QtWidgets import QApplication, QStyleOptionButton, QStyleOptionViewItem, QStyledItemDelegate, QStyle
 from PyQt6.QtCore import QEvent, Qt, QRect, QSize
 
 class CustomDelegate(QStyledItemDelegate):
@@ -32,44 +32,9 @@ class CustomDelegate(QStyledItemDelegate):
         if not index.isValid():
             return
 
-        painter.save()
-
-        if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, option.palette.highlight())
-
-        text = index.data(Qt.ItemDataRole.DisplayRole)
-        check = index.data(Qt.ItemDataRole.CheckStateRole)
-
-        rect = option.rect
-        x = rect.left() + self.CHECK_PADDING
-        cy = rect.top() + rect.height() // 2
-
-        if check is not None:
-            opt = QStyleOptionButton()
-            opt.state = QStyle.StateFlag.State_Enabled
-            if check == Qt.CheckState.Checked.value:
-                opt.state |= QStyle.StateFlag.State_On
-            elif check == Qt.CheckState.PartiallyChecked.value:
-                opt.state |= QStyle.StateFlag.State_NoChange
-            else:
-                opt.state |= QStyle.StateFlag.State_Off
-
-            opt.rect = QRect(
-                x,
-                cy - self.CHECK_SIZE // 2,
-                self.CHECK_SIZE,
-                self.CHECK_SIZE
-            )
-            style = option.widget.style() if option.widget else QApplication.style()
-            style.drawPrimitive(
-                QStyle.PrimitiveElement.PE_IndicatorCheckBox, opt, painter
-            )
-            x += self.CHECK_SIZE + 10
-
-        painter.setPen(option.palette.text().color())
-        text_rect = option.rect.adjusted(self.TEXT_OFFSET, 0,0,0)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
-        painter.restore()
+        opt = QStyleOptionViewItem(option)
+        opt.rect = option.rect.adjusted(0, 0, 0, 0)
+        super().paint(painter, opt, index)
 
     def sizeHint(self, option, index):
         size = super().sizeHint(option, index)
