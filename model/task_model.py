@@ -1,13 +1,14 @@
 from typing import List
 
 from .task import Task
+from . import storage
 from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt
 from PyQt6.QtGui import QFont
 
 class TaskModel(QAbstractListModel):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._tasks: List[Task] = []
+        self._tasks: List[Task] = storage.load_task()
 
     def rowCount(self, parent=QModelIndex()):
         if parent.isValid():
@@ -48,6 +49,7 @@ class TaskModel(QAbstractListModel):
 
         if role == Qt.ItemDataRole.CheckStateRole:
             task.done = bool(value)
+            storage.update_task_done(task.id, task.done)
             self.dataChanged.emit(
                 index, index,
                 [Qt.ItemDataRole.CheckStateRole],
@@ -59,6 +61,7 @@ class TaskModel(QAbstractListModel):
             if not text or text == task.text:
                 return False
             task.text = text
+            storage.update_task_text(task.id, text)
             self.dataChanged.emit(
                 index, index,
                 [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole],
@@ -68,13 +71,18 @@ class TaskModel(QAbstractListModel):
         return super().setData(index, value, role)
 
     def add_task(self, text: str) -> None:
+        text = text.strip()
+        if not text:
+            return
+        task = storage.insert_task(text)
         row = len(self._tasks)
         self.beginInsertRows(QModelIndex(), row, row)
-        self._tasks.append(Task(text))
+        self._tasks.append(task)
         self.endInsertRows()
 
     def remove_task(self, row: int) -> None:
         if 0 <= row < len(self._tasks):
+            storage.delete_task(self._tasks[row].id)
             self.beginRemoveRows(QModelIndex(), row, row)
             del self._tasks[row]
             self.endRemoveRows()
@@ -82,6 +90,7 @@ class TaskModel(QAbstractListModel):
     def clear(self) -> None:
         if not self._tasks:
             return
+        storage.clear_tasks()
         self.beginResetModel()
         self._tasks.clear()
         self.endResetModel()

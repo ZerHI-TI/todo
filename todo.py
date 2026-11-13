@@ -1,11 +1,13 @@
 import sys
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
+from model import storage
 from utils.paths import load_stylesheet, resource_path
 from view.main_window import MainWindow
 
 def main():
     app = QApplication(sys.argv)
+    storage.init_db()
     app.setStyleSheet(load_stylesheet())
     app.setWindowIcon(QIcon(resource_path("icon/app.png")))
     app.setQuitOnLastWindowClosed(False)

@@ -29,6 +29,7 @@ Thumbs.db
 desktop.ini
 .gitignore
 tasks.json
+tasks.db
 
 
 !README.md

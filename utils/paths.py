@@ -16,6 +16,7 @@ def data_path(filename):
     return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename)
 
 DATA_FILE = data_path("tasks.json")
+DB_FILE = data_path("tasks.db")
 QSS_PATH = resource_path("style.qss")
 
 def load_stylesheet():
